@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Guitar Hero Studio Online Cloud</title>
+    <style>
+        :root { 
+            --bg-dark: #050508; --fretboard: #09090d; --panel-bg: rgba(12, 12, 18, 0.98);
+            --col-g: #00ff77; --col-r: #ff0055; --col-y: #ffea00; --col-b: #00d2ff; --col-sp: #e600ff;
+        }
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; margin: 0; padding: 0; }
+        body { background: var(--bg-dark); color: white; font-family: -apple-system, BlinkMacSystemFont, sans-serif; overflow: hidden; touch-action: none; height: 100vh; }
+
+        /* PANTALLA INICIAL */
+        .setup-screen { padding: 20px 15px; max-width: 460px; margin: 2vh auto; max-height: 95vh; overflow-y: auto; background: var(--panel-bg); border: 2px solid #1a1a26; border-radius: 20px; text-align: center; }
+        h1.title { font-size: 26px; font-weight: 900; text-transform: uppercase; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 12px; margin: 6px 0; background: #000; border: 2px solid #2a2a3a; color: white; border-radius: 8px; font-size: 14px; text-align: center; user-select: text; -webkit-user-select: text; }
+        button { width: 100%; padding: 14px; margin: 6px 0; font-size: 14px; font-weight: bold; border-radius: 10px; border: none; cursor: pointer; }
+        .btn-creator { background: #ff0055; color: white; } .btn-player { background: #00ff77; color: black; }
+        
+        /* INTERFAZ DE JUEGO */
+        #game-container { display: none; position: relative; width: 100vw; height: 100vh; }
+        #scoreboard { position: absolute; top: env(safe-area-inset-top, 10px); left: 4%; width: 92%; height: 55px; background: rgba(0,0,0,0.9); border: 1px solid #222; border-radius: 12px; display: flex; justify-content: space-around; align-items: center; z-index: 400; }
+        .score-block { display: flex; flex-direction: column; text-align: center; }
+        .score-label { font-size: 8px; color: #777; font-weight: bold; }
+        .score-number { font-size: 16px; font-weight: 800; font-family: monospace; }
+        .sp-bar-container { width: 70px; height: 10px; background: #222; border-radius: 5px; overflow: hidden; border: 1px solid #444; }
+        .sp-bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #00d2ff, var(--col-sp)); transition: width 0.2s; }
+
+        /* MÁSTIL 3D */
+        #highway-frame { position: absolute; top: 75px; bottom: 130px; width: 100%; perspective: 220px; overflow: hidden; transition: top 0.3s ease; }
+        #highway-frame.edit-mode-active { top: 265px; } 
+        
+        #highway { width: 260px; height: 100%; margin: 0 auto; background: var(--fretboard); border-left: 3px solid #444; border-right: 3px solid #444; transform: rotateX(24deg); transform-origin: bottom center; position: relative; }
+        .lane { display: inline-block; width: 25%; height: 100%; float: left; position: relative; border-right: 1px solid rgba(255,255,255,0.05); }
+        .lane:last-child { border-right: none; }
+        
+        .receptor { position: absolute; bottom: 35px; left: 10%; width: 80%; height: 24px; border-radius: 50%; border: 3px solid #fff; background: rgba(0,0,0,0.7); opacity: 0.8; }
+        #lane-0 .receptor { border-color: var(--col-g); } #lane-1 .receptor { border-color: var(--col-r); } #lane-2 .receptor { border-color: var(--col-y); } #lane-3 .receptor { border-color: var(--col-b); }
+        .receptor.active { opacity: 1; background: #fff; transform: scale(1.15); }
+        .hit-flash { position: absolute; bottom: 25px; left: 0; width: 100%; height: 60px; opacity: 0; pointer-events: none; }
+
+        /* NOTAS RELATIVAS A CADA CARRIL */
+        .note-container { position: absolute; width: 88%; left: 6%; z-index: 10; pointer-events: none; }
+        .note-head { height: 18px; border-radius: 50% / 6px; box-shadow: inset 0 3px 4px #fff, 0 4px 6px rgba(0,0,0,0.6); }
+        .note-tail { width: 25%; margin: 0 auto; position: absolute; bottom: 9px; left: 37%; z-index: -1; }
+        .note-g .note-head { background: var(--col-g); } .note-g .note-tail { background: var(--col-g); opacity: 0.4; }
+        .note-r .note-head { background: var(--col-r); } .note-r .note-tail { background: var(--col-r); opacity: 0.4; }
+        .note-y .note-head { background: var(--col-y); } .note-y .note-tail { background: var(--col-y); opacity: 0.4; }
+        .note-b .note-head { background: var(--col-b); } .note-b .note-tail { background: var(--col-b); opacity: 0.4; }
+
+        /* PANEL EDITOR SUPERIOR */
+        #editor-panel { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); width: 96%; max-width: 480px; background: var(--panel-bg); border: 2px solid #2a2a3a; border-radius: 14px; padding: 10px; z-index: 300; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .tab-headers { display: flex; gap: 4px; margin-bottom: 8px; }
+        .tab-btn { flex-grow: 1; padding: 10px 4px; font-size: 11px; background: #161622; color: #aaa; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .tab-btn.active { background: #ff0055; color: #fff; }
+        .tab-content { display: none; } .tab-content.active { display: block; }
+        
+        .edit-row { display: flex; gap: 6px; justify-content: space-between; margin-bottom: 6px; align-items: center; }
+        .btn-tool { flex-grow: 1; padding: 12px 6px; font-size: 11px; font-weight: bold; background: #1f1f2e; color: #fff; border: 1px solid #3a3a4e; border-radius: 8px; cursor: pointer; }
+        
+        .timeline-container { display: flex; flex-direction: column; background: #000; padding: 6px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #222; }
+        #timeline-canvas { width: 100%; height: 35px; background: #0a0a0f; border-radius: 4px; }
+        
+        /* Catálogo Cloud */
+        .cloud-list { max-height: 105px; overflow-y: auto; background: #000; padding: 4px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px; }
+        .cloud-item { display: flex; justify-content: space-between; align-items: center; background: #151522; padding: 8px; border-radius: 6px; border: 1px solid #252538; }
+        .cloud-info { text-align: left; }
+        .cloud-title { font-size: 11px; font-weight: bold; color: #fff; }
+        .cloud-artist { font-size: 9px; color: #888; }
+        .btn-play-cloud { width: auto; padding: 6px 12px; font-size: 11px; background: #00ff77; color: #000; margin: 0; border-radius: 6px; font-weight: bold; cursor: pointer; }
+
+        #toggle-ui-btn { position: absolute; right: 15px; bottom: 135px; width: 44px; height: 44px; border-radius: 50%; background: #3a3a52; color: white; font-size: 16px; border: 2px solid #555; z-index: 350; display: none; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; }
+
+        /* DECK INFERIOR TÁCTIL / DE RATÓN */
+        #deck-controls { position: absolute; bottom: 0; width: 100%; height: 120px; background: linear-gradient(to top, #000 75%, rgba(0,0,0,0)); display: flex; justify-content: space-between; align-items: flex-end; padding: 0 10px calc(8px + env(safe-area-inset-bottom, 0px)) 10px; z-index: 200; }
+        .pad-btn { width: 23%; height: 85px; border-radius: 14px; border: 2px solid rgba(255,255,255,0.15); box-shadow: 0 5px 0 #000; cursor: pointer; }
+        .pad-0 { background: linear-gradient(#11994e, #064420); } .pad-1 { background: linear-gradient(#d50044, #55001a); } .pad-2 { background: linear-gradient(#ccaa00, #554400); } .pad-3 { background: linear-gradient(#0099cc, #004466); }
+        .pad-btn.active-style { transform: translateY(3px); box-shadow: 0 2px 0 #000; filter: brightness(1.3); }
+        .sp-active-glow { animation: spGlow 1s infinite alternate; }
+        @keyframes spGlow { from { box-shadow: 0 0 4px var(--col-sp); } to { box-shadow: 0 0 15px var(--col-sp), inset 0 0 8px #fff; } }
+        
+        /* Hint de teclado invisible para el usuario de PC */
+        .kb-hint { position: absolute; bottom: 90px; width: 100%; text-align: center; font-size: 10px; color: #444; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="setup" class="setup-screen">
+        <h1 class="title">GH Studio <span style="color:var(--col-g)">CLOUD</span></h1>
+        <p style="color:#666; font-size:11px; margin-bottom:10px;">Estación Multiplataforma (PC y Móvil)</p>
+        
+        <input type="text" id="audio-url" value="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg">
+        <div style="display:flex; gap:8px;">
+            <input type="text" id="song-title" placeholder="Título" value="Mi Mapa Online">
+            <input type="text" id="song-artist" placeholder="Artista" value="Creador Pro">
+        </div>
+
+        <button class="btn-creator" onclick="initRole('creator')">🛠️ Abrir Editor Completo</button>
+        <button class="btn-player" onclick="initRole('player')">📱 Modo Solo Jugador</button>
+        <button style="background:#222; color:#aaa; font-size:11px; padding:8px;" onclick="requestGyroPermission()">🔄 Activar Star Power por Movimiento</button>
+        <p style="font-size:10px; color:#555; margin-top:5px;">En PC puedes usar las teclas 1,2,3,4 o A,S,D,F</p>
+    </div>
+
+    <div id="game-container">
+        <div id="scoreboard">
+            <div class="score-block"><span class="score-label">PUNTOS</span><span id="score-val" class="score-number">000000</span></div>
+            <div class="score-block"><span class="score-label">STAR POWER</span><div class="sp-bar-container"><div id="sp-bar" class="sp-bar-fill"></div></div></div>
+            <div class="score-block"><span class="score-label">COMBO</span><span id="combo-val" class="score-number" style="color:var(--col-g)">0</span></div>
+            <div class="score-block"><span class="score-label">MULT.</span><span id="mult-val" class="score-number" style="color:var(--col-y)">1X</span></div>
+        </div>
+
+        <div id="highway-frame">
+            <div id="highway">
+                <div class="lane" id="lane-0"><div class="hit-flash" id="flash-0"></div><div class="receptor" id="receptor-0"></div></div>
+                <div class="lane" id="lane-1"><div class="hit-flash" id="flash-1"></div><div class="receptor" id="receptor-1"></div></div>
+                <div class="lane" id="lane-2"><div class="hit-flash" id="flash-2"></div><div class="receptor" id="receptor-2"></div></div>
+                <div class="lane" id="lane-3"><div class="hit-flash" id="flash-3"></div><div class="receptor" id="receptor-3"></div></div>
+            </div>
+        </div>
+
+        <div id="toggle-ui-btn" onclick="toggleEditorVisibility()">👁️</div>
+        <div class="kb-hint" id="kb-hint-text">Controles PC: [A S D F] o [1 2 3 4] (Espacio para Star Power)</div>
+
+        <div id="editor-panel">
+            <div class="tab-headers">
+                <button class="tab-btn active" onclick="switchTab('tab-grabacion', event)">🎛️ GRABAR</button>
+                <button class="tab-btn" onclick="switchTab('tab-ritmo', event)">🎵 RITMO</button>
+                <button class="tab-btn" onclick="switchTab('tab-comunidad', event)">🌍 NUBE</button>
+            </div>
+
+            <div class="timeline-container">
+                <canvas id="timeline-canvas"></canvas>
+                <input type="range" id="timeline-scrub" min="0" value="0" step="0.05" oninput="audio.currentTime = parseFloat(this.value)" style="width: 100%; accent-color: #ff0055; margin-top: 4px; cursor:pointer;">
+            </div>
+
+            <div id="tab-grabacion" class="tab-content active">
+                <div class="edit-row">
+                    <button class="btn-tool" id="btn-rec" onclick="toggleRecording()" style="background:#cc0044; flex-grow:2;">🔴 GRABAR PULSOS</button>
+                    <button class="btn-tool" onclick="undoLastNote()">↩️ UNDO</button>
+                </div>
+                <div class="edit-row">
+                    <button class="btn-tool" onclick="audio.currentTime -= 2">⏪ -2s</button>
+                    <button class="btn-tool" onclick="audio.currentTime += 2">⏩ +2s</button>
+                    <select id="playback-speed" onchange="audio.playbackRate = parseFloat(this.value)" style="width:40%; margin:0; padding:8px; border-radius:8px; background:#000; color:#fff;">
+                        <option value="1.0">⚡ 100%</option>
+                        <option value="0.5">🐌 50%</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="tab-ritmo" class="tab-content">
+                <div class="edit-row">
+                    <span style="font-size:11px;">BPM:</span>
+                    <input type="number" id="editor-bpm" value="120" onchange="updateBpm()" style="width:70px; margin:0; padding:6px;">
+                    <button class="btn-tool" id="btn-metro" onclick="toggleMetronome()">🔊 METRÓNOMO</button>
+                </div>
+            </div>
+
+            <div id="tab-comunidad" class="tab-content">
+                <div class="edit-row">
+                    <button class="btn-tool" onclick="publishSongToCloud()" style="background:#028844;">🚀 SUBIR A LA NUBE</button>
+                    <button class="btn-tool" onclick="fetchSongsFromCloud()" style="background:#025699;">🔄 REFRESCAR</button>
+                </div>
+                <div class="cloud-list" id="cloud-songs-box">
+                    <p style="font-size:10px; color:#555; text-align:center; padding:10px;">Cargando catálogo...</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="deck-controls">
+            <div id="pad-0" class="pad-btn pad-0" ontouchstart="handleTouchStart(0, event)" ontouchend="handleTouchEnd(0, event)" onmousedown="handleMouseDown(0, event)" onmouseup="handleMouseUp(0, event)" onmouseleave="handleMouseUp(0, event)"></div>
+            <div id="pad-1" class="pad-btn pad-1" ontouchstart="handleTouchStart(1, event)" ontouchend="handleTouchEnd(1, event)" onmousedown="handleMouseDown(1, event)" onmouseup="handleMouseUp(1, event)" onmouseleave="handleMouseUp(1, event)"></div>
+            <div id="pad-2" class="pad-btn pad-2" ontouchstart="handleTouchStart(2, event)" ontouchend="handleTouchEnd(2, event)" onmousedown="handleMouseDown(2, event)" onmouseup="handleMouseUp(2, event)" onmouseleave="handleMouseUp(2, event)"></div>
+            <div id="pad-3" class="pad-btn pad-3" ontouchstart="handleTouchStart(3, event)" ontouchend="handleTouchEnd(3, event)" onmousedown="handleMouseDown(3, event)" onmouseup="handleMouseUp(3, event)" onmouseleave="handleMouseUp(3, event)"></div>
+        </div>
+    </div>
+
+    <script>
+        const URL_SERVIDOR = "http://localhost:3000"; 
+
+        let role = "";
+        let audio = new Audio();
+        let chart = [];
+        let bpm = 120, msPerBeat = 500, lastBeatTicked = -1;
+        let isRecording = false, isPlaying = false, useMetronome = false;
+        let isUiVisible = true;
+        
+        let laneKeysHeld = [false, false, false, false];
+        let recordNoteStart = [0, 0, 0, 0];
+
+        let score = 0, combo = 0, multiplier = 1, starPowerMeter = 0, isStarPowerActive = false;
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function initRole(chosenRole) {
+            role = chosenRole;
+            audio.src = fixAudioUrl(document.getElementById('audio-url').value);
+            audio.preload = "auto";
+
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+
+            if (role === 'creator') {
+                document.getElementById('editor-panel').style.display = 'block';
+                document.getElementById('toggle-ui-btn').style.display = 'flex';
+                document.getElementById('highway-frame').classList.add('edit-mode-active');
+                updateBpm();
+                fetchSongsFromCloud();
+            } else {
+                document.getElementById('kb-hint-text').style.bottom = "10px";
+            }
+
+            setupKeyboardListeners();
+
+            setInterval(drawTimelineCanvas, 250);
+            requestAnimationFrame(gameEngineLoop);
+        }
+
+        function switchTab(tabId, event) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function toggleEditorVisibility() {
+            isUiVisible = !isUiVisible;
+            const panel = document.getElementById('editor-panel');
+            const frame = document.getElementById('highway-frame');
+            if (isUiVisible) {
+                panel.style.display = 'block';
+                frame.classList.add('edit-mode-active');
+            } else {
+                panel.style.display = 'none';
+                frame.classList.remove('edit-mode-active');
+            }
+        }
+
+        // ================= SISTEMA DE EVENTOS HÍBRIDO (PC/MÓVIL) =================
+        function handleTouchStart(laneId, e) { e.preventDefault(); btnPress(laneId); }
+        function handleTouchEnd(laneId, e) { e.preventDefault(); btnRelease(laneId); }
+        function handleMouseDown(laneId, e) { btnPress(laneId); }
+        function handleMouseUp(laneId, e) { btnRelease(laneId); }
+
+        function setupKeyboardListeners() {
+            window.addEventListener('keydown', (e) => {
+                if (e.repeat) return;
+                if (document.activeElement.tagName === 'INPUT') return; // No jugar mientras escribes text
+
+                let lane = getLaneFromKey(e.key);
+                if (lane !== -1) btnPress(lane);
+                
+                // Activar Star power en PC con la barra espaciadora
+                if (e.key === " " || e.code === "Space") activateStarPowerPC();
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (document.activeElement.tagName === 'INPUT') return;
+                let lane = getLaneFromKey(e.key);
+                if (lane !== -1) btnRelease(lane);
+            });
+        }
+
+        function getLaneFromKey(key) {
+            let k = key.toLowerCase();
+            if (k === '1' || k === 'a') return 0;
+            if (k === '2' || k === 's') return 1;
+            if (k === '3' || k === 'd') return 2;
+            if (k === '4' || k === 'f') return 3;
+            return -1;
+        }
+
+        // ================= LÓGICA DE JUEGO =================
+        function btnPress(laneId) {
+            if (laneKeysHeld[laneId]) return; // Evitar disparos repetidos en PC
+            laneKeysHeld[laneId] = true;
+            
+            document.getElementById(`receptor-${laneId}`).classList.add('active');
+            document.getElementById(`pad-${laneId}`).classList.add('active-style');
+            
+            if (navigator.vibrate) navigator.vibrate(20);
+            let currentMs = audio.currentTime * 1000;
+
+            if (role === 'creator' && isRecording) { recordNoteStart[laneId] = currentMs; return; }
+            if (isPlaying && !isRecording) checkHitDetections(laneId, currentMs);
+        }
+
+        function btnRelease(laneId) {
+            if (!laneKeysHeld[laneId]) return;
+            laneKeysHeld[laneId] = false;
+            
+            document.getElementById(`receptor-${laneId}`).classList.remove('active');
+            document.getElementById(`pad-${laneId}`).classList.remove('active-style');
+            
+            if (role === 'creator' && isRecording) {
+                let currentMs = audio.currentTime * 1000;
+                let dur = currentMs - recordNoteStart[laneId];
+                chart.push({ 
+                    time: Math.round(recordNoteStart[laneId]), 
+                    lane: laneId, 
+                    duration: Math.round(dur > 200 ? dur : 0) 
+                });
+                chart.sort((a,b) => a.time - b.time);
+                playSfx('hit');
+            }
+        }
+
+        function checkHitDetections(laneId, currentMs) {
+            let hitTarget = chart.find(n => n.lane === laneId && !n.hit && !n.missed && Math.abs(n.time - currentMs) <= 140);
+            if (hitTarget) {
+                hitTarget.hit = true; playSfx('hit');
+                triggerVisualFlash(laneId, isStarPowerActive ? 'var(--col-sp)' : 'var(--col-g)');
+                combo++; if(starPowerMeter < 100 && !isStarPowerActive) starPowerMeter = Math.min(100, starPowerMeter + 2);
+                calculateMultiplier(); score += 100 * multiplier;
+            } else { combo = 0; multiplier = 1; playSfx('miss'); }
+            updateScoreboardUI();
+        }
+
+        function activateStarPowerPC() {
+            if (starPowerMeter >= 50 && !isStarPowerActive) {
+                isStarPowerActive = true;
+                document.getElementById('scoreboard').classList.add('sp-active-glow');
+                let drain = setInterval(() => {
+                    starPowerMeter -= 5; if(starPowerMeter <= 0) { starPowerMeter = 0; isStarPowerActive = false; clearInterval(drain); document.getElementById('scoreboard').classList.remove('sp-active-glow'); }
+                    document.getElementById('sp-bar').style.width = `${starPowerMeter}%`; calculateMultiplier(); updateScoreboardUI();
+                }, 300);
+            }
+        }
+
+        // ================= CONEXIONES BACKEND NUBE =================
+        async function fetchSongsFromCloud() {
+            const container = document.getElementById('cloud-songs-box');
+            container.innerHTML = `<p style='font-size:10px; color:#888; text-align:center; padding:10px;'>Conectando base de datos...</p>`;
+            try {
+                const response = await fetch(`${URL_SERVIDOR}/api/canciones`);
+                const canciones = await response.json();
+                container.innerHTML = "";
+                if(canciones.length === 0) {
+                    container.innerHTML = `<p style='font-size:10px; color:#555; text-align:center; padding:10px;'>Ninguna canción en la nube todavía.</p>`;
+                    return;
+                }
+                canciones.forEach(song => {
+                    const item = document.createElement('div');
+                    item.className = "cloud-item";
+                    item.innerHTML = `
+                        <div class="cloud-info">
+                            <div class="cloud-title">${song.titulo}</div>
+                            <div class="cloud-artist">${song.artista} (${song.chart.length} n.)</div>
+                        </div>
+                        <button class="btn-play-cloud" onclick="loadCloudSong('${btoa(unescape(encodeURIComponent(JSON.stringify(song))))}')">🎮 JUGAR</button>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (err) {
+                container.innerHTML = `<p style='font-size:10px; color:#ff0055; text-align:center; padding:10px;'>Error de conexión con el servidor.</p>`;
+            }
+        }
+
+        async function publishSongToCloud() {
+            if(chart.length === 0) return alert("Graba algunas notas antes de publicar.");
+            const datosCancion = {
+                titulo: document.getElementById('song-title').value,
+                artista: document.getElementById('song-artist').value,
+                url: document.getElementById('audio-url').value,
+                bpm: bpm,
+                chart: chart
+            };
+            try {
+                const response = await fetch(`${URL_SERVIDOR}/api/canciones`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datosCancion)
+                });
+                const resultado = await response.json();
+                alert("🚀 " + resultado.mensaje);
+                fetchSongsFromCloud();
+            } catch (err) {
+                alert("Error de red al publicar.");
+            }
+        }
+
+        function loadCloudSong(encodedData) {
+            const song = JSON.parse(decodeURIComponent(escape(atob(encodedData))));
+            audio.src = fixAudioUrl(song.url);
+            chart = song.chart;
+            bpm = song.bpm;
+            msPerBeat = 60000 / bpm;
+            
+            score = 0; combo = 0; multiplier = 1; starPowerMeter = 0; isStarPowerActive = false;
+            chart.forEach(n => { n.hit = false; n.missed = false; });
+            document.querySelectorAll('.note-container').forEach(n => n.remove());
+            updateScoreboardUI();
+            
+            isPlaying = true;
+            audio.currentTime = 0;
+            audio.play();
+        }
+
+        // ================= MOTOR PRINCIPAL Y RENDER =================
+        function updateBpm() { bpm = parseInt(document.getElementById('editor-bpm').value) || 120; msPerBeat = 60000 / bpm; }
+        function toggleMetronome() { useMetronome = !useMetronome; document.getElementById('btn-metro').style.background = useMetronome ? '#00ff77' : '#1f1f2e'; document.getElementById('btn-metro').style.color = useMetronome ? '#000' : '#fff'; }
+
+        function gameEngineLoop() {
+            let currentMs = audio.currentTime * 1000;
+            if (!audio.paused) {
+                document.getElementById('timeline-scrub').value = audio.currentTime;
+                document.getElementById('timeline-scrub').max = audio.duration || 100;
+            }
+
+            if (useMetronome && !audio.paused) {
+                let currentBeat = Math.floor(currentMs / msPerBeat);
+                if (currentBeat !== lastBeatTicked) { lastBeatTicked = currentBeat; playSfx('tick'); }
+            }
+
+            let highwayElement = document.getElementById('highway');
+            if (!highwayElement) return;
+            let receptorPos = highwayElement.clientHeight - 35;
+
+            chart.forEach((note, index) => {
+                if (currentMs >= note.time - 1400 && currentMs <= note.time + note.duration + 300) {
+                    let noteId = `note-u-${index}`;
+                    let noteDom = document.getElementById(noteId);
+
+                    if (!noteDom) {
+                        noteDom = document.createElement('div'); noteDom.id = noteId;
+                        noteDom.className = `note-container note-${['g','r','y','b'][note.lane]}`;
+                        noteDom.innerHTML = `<div class="note-head"></div>`;
+                        if (note.duration > 0) {
+                            let tail = document.createElement('div'); tail.className = 'note-tail';
+                            noteDom.appendChild(tail);
+                        }
+                        document.getElementById(`lane-${note.lane}`).appendChild(noteDom);
+                    }
+
+                    let headY = receptorPos - ((note.time - currentMs) * 0.45);
+                    if (note.duration > 0) {
+                        let tailY = receptorPos - (((note.time + note.duration) - currentMs) * 0.45);
+                        noteDom.style.top = `${tailY}px`; noteDom.style.height = `${headY - tailY + 18}px`;
+                        let t = noteDom.querySelector('.note-tail'); if(t) t.style.height = `${headY - tailY}px`;
+                    } else {
+                        noteDom.style.top = `${headY}px`; noteDom.style.height = '18px';
+                    }
+
+                    let h = noteDom.querySelector('.note-head'); if (note.hit && h) h.style.opacity = '0.15';
+                    if (headY > receptorPos + 140 && !note.hit && !note.missed) { note.missed = true; combo = 0; multiplier = 1; updateScoreboardUI(); playSfx('miss'); }
+                } else {
+                    let noteDom = document.getElementById(`note-u-${index}`); if(noteDom) noteDom.remove();
+                }
+            });
+
+            requestAnimationFrame(gameEngineLoop);
+        }
+
+        function drawTimelineCanvas() {
+            let canvas = document.getElementById('timeline-canvas'); if(!canvas || !audio.duration) return;
+            let ctx = canvas.getContext('2d'); let w = canvas.width = canvas.clientWidth; let h = canvas.height;
+            ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#0f0f18'; ctx.fillRect(0, 0, w, h);
+            chart.forEach(n => { ctx.fillStyle = ['#00ff77', '#ff0055', '#ffea00', '#00d2ff'][n.lane]; ctx.fillRect(((n.time / 1000) / audio.duration) * w, h/2 - 4, 2, 8); });
+            ctx.fillStyle = '#ffffff'; ctx.fillRect((audio.currentTime / audio.duration) * w, 0, 2, h);
+        }
+
+        function requestGyroPermission() {
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission().then(res => { if (res == 'granted') window.addEventListener('devicemotion', detectShake); });
+            } else { window.addEventListener('devicemotion', detectShake); }
+        }
+        function detectShake(e) {
+            let acc = e.accelerationIncludingGravity; if(!acc) return;
+            if (Math.abs(acc.x) + Math.abs(acc.y) + Math.abs(acc.z) > 24) activateStarPowerPC();
+        }
+
+        function toggleRecording() {
+            let b = document.getElementById('btn-rec');
+            if(!isRecording) {
+                isRecording = true; isPlaying = false; chart = [];
+                document.querySelectorAll('.note-container').forEach(n => n.remove());
+                b.innerText = "⏹️ FINALIZAR"; b.style.background = "#fff"; b.style.color = "#000";
+                audio.currentTime = 0; audio.play();
+            } else {
+                isRecording = false; audio.pause();
+                b.innerText = "🔴 GRABAR PULSOS"; b.style.background = "#cc0044"; b.style.color = "#fff";
+            }
+        }
+        function undoLastNote() { if(chart.length > 0) chart.pop(); }
+        function calculateMultiplier() { let b = combo >= 30 ? 4 : combo >= 20 ? 3 : combo >= 10 ? 2 : 1; multiplier = isStarPowerActive ? b * 2 : b; }
+        function updateScoreboardUI() { document.getElementById('score-val').innerText = String(score).padStart(6, '0'); document.getElementById('combo-val').innerText = combo; document.getElementById('mult-val').innerText = `${multiplier}X`; document.getElementById('sp-bar').style.width = `${starPowerMeter}%`; }
+        function triggerVisualFlash(l, c) { let f = document.getElementById(`flash-${l}`); f.style.background = `radial-gradient(circle, ${c} 0%, rgba(0,0,0,0) 75%)`; f.style.opacity = '1'; setTimeout(() => f.style.opacity = '0', 80); }
+        function fixAudioUrl(url) { if (url.includes("dropbox.com")) return url.replace("?dl=0", "?raw=1").replace("&dl=0", "&raw=1"); if (url.includes("drive.google.com/file/d/")) { const p = url.split("/file/d/"); if (p.length > 1) return `https://docs.google.com/uc?export=download&id=${p[1].split("/")[0]}`; } return url; }
+        
+        function playSfx(type) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            let osc = audioCtx.createOscillator(); let g = audioCtx.createGain(); osc.connect(g); g.connect(audioCtx.destination);
+            if (type === 'hit') { osc.type = 'triangle'; osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); g.gain.setValueAtTime(0.1, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.05); osc.start(); osc.stop(audioCtx.currentTime + 0.05); }
+            else if (type === 'miss') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(90, audioCtx.currentTime); g.gain.setValueAtTime(0.08, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1); osc.start(); osc.stop(audioCtx.currentTime + 0.1); }
+            else if (type === 'tick') { osc.type = 'sine'; osc.frequency.setValueAtTime(350, audioCtx.currentTime); g.gain.setValueAtTime(0.05, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03); osc.start(); osc.stop(audioCtx.currentTime + 0.03); }
+        }
+    </script>
+</body>
+</html>
